@@ -21,8 +21,8 @@ def dirty_db(tmp_path):
     users_data = {
         "user_id": ["u1", None, "u3", "u3", "u4", "u5"],
         "signup_date": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-03", "2023-01-04", "2023-01-05"],
-        "plan_type": ["Starter"] * 6,
-        "company_size": ["1-10"] * 6,
+        "plan_type": [" starter ", "Starter", "Pro", "Pro", "Enterprise", "Enterprise"],
+        "company_size": ["  1-10  ", "1-10", "11-50", "11-50", "201+", "201+"],
         "trial_length_days": [14] * 6,
         "converted": [1, 0, 0, 0, 1, 0],
         "conversion_date": ["2023-01-10", None, None, None, None, "2023-01-10"]
@@ -40,7 +40,7 @@ def dirty_db(tmp_path):
     features_data = {
         "event_id": ["e1", "e2", "e3", "e3", "e4", "e5"],
         "user_id": ["u1", None, "u1", "u1", "u1", "u999"],
-        "feature_name": ["dashboard"] * 6,
+        "feature_name": [" DaShBoArD ", "dashboard", "dashboard", "dashboard", "dashboard", "dashboard"],
         "event_timestamp": [
             "2023-01-02", # e1 valid
             "2023-01-02", # e2 null user_id
@@ -83,5 +83,15 @@ def test_run_cleaning(dirty_db):
     cursor.execute("SELECT event_id FROM feature_usage_clean")
     final_features = {row[0] for row in cursor.fetchall()}
     assert final_features == {"e1", "e3"}
+    
+    # Assertions on string normalization
+    cursor.execute("SELECT plan_type, company_size FROM users_clean WHERE user_id = 'u1'")
+    u1_row = cursor.fetchone()
+    assert u1_row[0] == "Starter"
+    assert u1_row[1] == "1-10"
+    
+    cursor.execute("SELECT feature_name FROM feature_usage_clean WHERE event_id = 'e1'")
+    e1_row = cursor.fetchone()
+    assert e1_row[0] == "dashboard"
     
     conn.close()
