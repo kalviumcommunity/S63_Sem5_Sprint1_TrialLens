@@ -36,10 +36,18 @@ def send_report_email(recipient: str, report_text: str) -> dict:
         msg["From"] = smtp_user
         msg["To"] = recipient
 
-        with smtplib.SMTP(smtp_server, int(smtp_port)) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
+        timeout = 10
+        if int(smtp_port) == 465:
+            with smtplib.SMTP_SSL(
+                smtp_server, int(smtp_port), timeout=timeout
+            ) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_server, int(smtp_port), timeout=timeout) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
 
         return {
             "status": "success",
