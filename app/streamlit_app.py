@@ -43,7 +43,21 @@ DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data', 
 # 5. Load data with try/except
 try:
     if not os.path.exists(DB_PATH):
-        raise FileNotFoundError(f"Database not found at {DB_PATH}")
+        with st.spinner("Setting up data pipeline for the first time... This takes about 10 seconds."):
+            from src.generate_data import generate_all_data
+            from src.ingest import run_ingestion
+            from src.clean import run_cleaning
+            from src.features import build_features
+            
+            raw_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data', 'raw'))
+            if not os.path.exists(os.path.join(raw_dir, 'users.csv')):
+                generate_all_data(output_dir=raw_dir)
+            
+            run_ingestion(raw_dir=raw_dir, db_path=DB_PATH)
+            run_cleaning(db_path=DB_PATH)
+            build_features(db_path=DB_PATH)
+            
+            st.success("Data pipeline initialized successfully!")
 
     # Fetch base data to populate filter options dynamically
     base_df = get_user_features(db_path=DB_PATH)
