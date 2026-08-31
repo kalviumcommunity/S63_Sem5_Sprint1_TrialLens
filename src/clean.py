@@ -3,6 +3,17 @@ import sqlite3
 import pprint
 import numpy as np
 
+def detect_outliers(df, column):
+    Q1 = df[column].quantile(0.25)
+    Q3 = df[column].quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    
+    outlier_col = f'is_outlier_{column}'
+    df[outlier_col] = (df[column] < lower_bound) | (df[column] > upper_bound)
+    return df
+
 def normalize_strings(df, columns, case='title'):
     num_changed = 0
     for col in columns:
@@ -127,8 +138,19 @@ def run_cleaning(db_path="data/trialens.db"):
     report['features_dropped_orphaned'] = dropped_orphans
     print(f"Checked feature_usage for orphaned rows: Dropped {dropped_orphans} rows.")
     
+    # 7. Outlier Detection
+    event_counts = df_features.groupby('user_id').size().reset_index(name='total_event_count')
+    df_users = df_users.merge(event_counts, on='user_id', how='left')
+    df_users['total_event_count'] = df_users['total_event_count'].fillna(0)
+    
+    df_users = detect_outliers(df_users, 'total_event_count')
+    
+    num_outliers = int(df_users['is_outlier_total_event_count'].sum())
+    report['users_flagged_outliers'] = num_outliers
+    print(f"Flagged {num_outliers} users as outliers based on total_event_count.")
+    
     # Clean up temp columns
-    df_users = df_users.drop(columns=['signup_date_dt'])
+    df_users = df_users.drop(columns=['signup_date_dt', 'total_event_count'])
     df_features = df_features.drop(columns=['event_timestamp_dt'])
     
     # Write to SQLite
