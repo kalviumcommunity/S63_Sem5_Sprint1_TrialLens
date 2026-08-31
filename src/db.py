@@ -123,3 +123,68 @@ def get_user_features(filters: Optional[Dict[str, Any]] = None, db_path: str = D
     with get_connection(db_path) as conn:
         df = pd.read_sql(query, conn, params=params)
     return df
+
+def get_engagement_ranking(db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
+    """
+    Ranks users by total_events within their signup cohort (month).
+    Returns user_id, signup_month, total_events, and rank_within_cohort.
+    """
+    query = """
+        SELECT 
+            uf.user_id,
+            strftime('%Y-%m', uc.signup_date) as signup_month,
+            uf.total_events,
+            RANK() OVER (PARTITION BY strftime('%Y-%m', uc.signup_date) ORDER BY uf.total_events DESC) as rank_within_cohort
+        FROM user_features uf
+        JOIN users_clean uc ON uf.user_id = uc.user_id
+        ORDER BY signup_month, rank_within_cohort
+    """
+    with get_connection(db_path) as conn:
+        df = pd.read_sql(query, conn)
+    return df
+
+def create_views(db_path: str = DEFAULT_DB_PATH):
+    """
+    Creates SQL views for common aggregations.
+    """
+    queries = [
+        "DROP VIEW IF EXISTS conversion_summary;",
+        """
+        CREATE VIEW conversion_summary AS
+        SELECT 
+            plan_type, 
+            company_size, 
+            AVG(CAST(converted AS FLOAT)) * 100.0 as conversion_rate,
+            COUNT(*) as user_count
+        FROM user_features
+        WHERE plan_type IS NOT NULL AND company_size IS NOT NULL
+        GROUP BY plan_type, company_size;
+        """,
+        "DROP VIEW IF EXISTS engagement_summary;",
+        """
+        CREATE VIEW engagement_summary AS
+        SELECT 
+            converted,
+            AVG(days_active) as avg_days_active,
+            AVG(distinct_features_used) as avg_distinct_features_used,
+            AVG(total_events) as avg_total_events,
+            COUNT(*) as user_count
+        FROM user_features
+        GROUP BY converted;
+        """
+    ]
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        for q in queries:
+            cursor.execute(q)
+        conn.commit()
+
+def query_conversion_summary_view(db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
+    query = "SELECT * FROM conversion_summary"
+    with get_connection(db_path) as conn:
+        return pd.read_sql(query, conn)
+
+def query_engagement_summary_view(db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
+    query = "SELECT * FROM engagement_summary"
+    with get_connection(db_path) as conn:
+        return pd.read_sql(query, conn)

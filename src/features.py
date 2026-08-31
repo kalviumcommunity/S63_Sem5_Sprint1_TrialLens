@@ -134,7 +134,12 @@ def build_features(db_path="data/trialens.db"):
     final_df.to_sql('user_features', conn, if_exists='replace', index=False)
     
     conn.close()
-    print("Features engineered and saved to 'user_features' table.")
+    
+    # Create the SQL views that depend on user_features
+    from src.db import create_views
+    create_views(db_path)
+    
+    print("Features engineered and saved to 'user_features' table. Views created.")
     
     return final_df
 

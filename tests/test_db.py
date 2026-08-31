@@ -8,7 +8,11 @@ from src.db import (
     get_conversion_by_core_features,
     get_conversion_by_trend,
     get_conversion_by_segment,
-    get_user_features
+    get_user_features,
+    get_engagement_ranking,
+    create_views,
+    query_conversion_summary_view,
+    query_engagement_summary_view
 )
 
 @pytest.fixture
@@ -87,3 +91,41 @@ def test_get_user_features(mock_db):
     # Invalid filter
     with pytest.raises(ValueError):
         get_user_features({"invalid col": "val"}, db_path=mock_db)
+
+def test_get_engagement_ranking(mock_db):
+    df = get_engagement_ranking(mock_db)
+    assert len(df) == 3
+    # all signed up in 2023-01
+    assert df.iloc[0]['signup_month'] == '2023-01'
+    # highest total_events is u3 (50)
+    assert df.iloc[0]['user_id'] == 'u3'
+    assert df.iloc[0]['rank_within_cohort'] == 1
+    assert df.iloc[1]['user_id'] == 'u1'
+    assert df.iloc[1]['rank_within_cohort'] == 2
+    assert df.iloc[2]['user_id'] == 'u2'
+    assert df.iloc[2]['rank_within_cohort'] == 3
+
+def test_views_creation_and_querying(mock_db):
+    # Create the views
+    create_views(mock_db)
+    
+    # Verify views exist in sqlite_master
+    conn = sqlite3.connect(mock_db)
+    master_df = pd.read_sql("SELECT name FROM sqlite_master WHERE type='view'", conn)
+    conn.close()
+    
+    views = master_df['name'].tolist()
+    assert 'conversion_summary' in views
+    assert 'engagement_summary' in views
+    
+    # Query conversion summary
+    conv_df = query_conversion_summary_view(mock_db)
+    assert len(conv_df) == 3
+    assert 'conversion_rate' in conv_df.columns
+    assert 'plan_type' in conv_df.columns
+    
+    # Query engagement summary
+    eng_df = query_engagement_summary_view(mock_db)
+    assert len(eng_df) == 2  # converted = 0 and 1
+    assert 'avg_days_active' in eng_df.columns
+    assert 'converted' in eng_df.columns
