@@ -6,11 +6,13 @@ import streamlit as st
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import plotly.express as px
+import pandas as pd
 from src.db import (
     get_kpi_summary,
     get_conversion_by_core_features,
     get_conversion_by_trend,
-    get_conversion_by_segment
+    get_conversion_by_segment,
+    get_user_features
 )
 from src.analysis import run_analysis
 
@@ -43,19 +45,59 @@ try:
     if not os.path.exists(DB_PATH):
         raise FileNotFoundError(f"Database not found at {DB_PATH}")
 
-    # 3. Call get_kpi_summary and display as 3 metrics
-    kpis = get_kpi_summary(db_path=DB_PATH)
+    # Fetch base data to populate filter options dynamically
+    base_df = get_user_features(db_path=DB_PATH)
+    all_plans = base_df['plan_type'].dropna().unique().tolist()
+    all_sizes = base_df['company_size'].dropna().unique().tolist()
+
+    # --- SIDEBAR FILTERS ---
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Filter Users")
+    
+    selected_plans = st.sidebar.multiselect("Plan Type", options=all_plans)
+    selected_sizes = st.sidebar.multiselect("Company Size", options=all_sizes)
+    selected_conv = st.sidebar.radio("Conversion Status", options=["All", "Converted", "Not Converted"])
+    
+    # Build filter dict
+    filters = {}
+    if selected_plans:
+        filters['plan_type'] = selected_plans
+    if selected_sizes:
+        filters['company_size'] = selected_sizes
+    if selected_conv != "All":
+        filters['converted'] = True if selected_conv == "Converted" else False
+        
+    # Get filtered dataframe
+    filtered_df = get_user_features(filters=filters, db_path=DB_PATH)
+
+    # --- RECOMPUTE KPIs ---
+    if not filtered_df.empty:
+        total_users = len(filtered_df)
+        conv_rate = filtered_df['converted'].mean() * 100.0
+        
+        # Avg time to convert
+        conv_only = filtered_df[filtered_df['converted'] == True].copy()
+        if not conv_only.empty and 'signup_date' in conv_only.columns and 'conversion_date' in conv_only.columns:
+            conv_only['signup_date_dt'] = pd.to_datetime(conv_only['signup_date'])
+            conv_only['conversion_date_dt'] = pd.to_datetime(conv_only['conversion_date'])
+            avg_time = (conv_only['conversion_date_dt'] - conv_only['signup_date_dt']).dt.days.mean()
+        else:
+            avg_time = 0.0
+    else:
+        total_users = 0
+        conv_rate = 0.0
+        avg_time = 0.0
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("Total Trial Users", f"{kpis['total_users']:,}")
+        st.metric("Total Trial Users", f"{total_users:,}")
         
     with col2:
-        st.metric("Conversion Rate", f"{kpis['overall_conversion_rate']}%")
+        st.metric("Conversion Rate", f"{conv_rate:.1f}%")
         
     with col3:
-        st.metric("Avg Time to Convert (days)", f"{kpis['avg_time_to_convert']}")
+        st.metric("Avg Time to Convert (days)", f"{avg_time:.1f}")
         
     # 4. Divider and placeholder
     st.divider()
@@ -140,6 +182,33 @@ try:
             )
             fig_segment.update_layout(showlegend=False)
             st.plotly_chart(fig_segment, use_container_width=True)
+            
+    # Note: Charts currently run off global data via optimized DB queries. 
+    # A future improvement could be to pass the `filters` dict to the DB 
+    # query functions so the charts respect the sidebar selections too.
+    
+    st.divider()
+    
+    # --- EXPLORE USERS SECTION ---
+    st.subheader("Explore Users")
+    
+    if filtered_df.empty:
+        st.warning("No users match the selected filters. Please adjust your criteria.")
+    else:
+        st.write(f"Showing {len(filtered_df):,} of {len(base_df):,} users")
+        
+        # Select key columns for display
+        display_cols = [
+            'user_id', 'plan_type', 'company_size', 'days_active', 
+            'distinct_features_used', 'core_features_used_first_7_days', 
+            'usage_trend', 'converted'
+        ]
+        
+        # Reorder and subset if they exist
+        existing_cols = [c for c in display_cols if c in filtered_df.columns]
+        display_df = filtered_df[existing_cols].copy()
+        
+        st.dataframe(display_df, use_container_width=True)
     
 except Exception as e:
     st.error("⚠️ Database Not Found or Data Error")

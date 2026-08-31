@@ -90,9 +90,14 @@ def get_conversion_by_segment(segment_col: str, db_path: str = DEFAULT_DB_PATH) 
 
 def get_user_features(filters: Optional[Dict[str, Any]] = None, db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
     """
-    Returns full user_features dataframe, optionally filtered via parameterized query.
+    Returns full user_features dataframe (plus signup_date and conversion_date), 
+    optionally filtered via parameterized query.
     """
-    query = "SELECT * FROM user_features"
+    query = """
+        SELECT uf.*, uc.signup_date, uc.conversion_date 
+        FROM user_features uf
+        LEFT JOIN users_clean uc ON uf.user_id = uc.user_id
+    """
     params = []
     
     if filters:
@@ -101,8 +106,16 @@ def get_user_features(filters: Optional[Dict[str, Any]] = None, db_path: str = D
             # Validate column name to prevent SQL injection via keys
             if not str(col).isidentifier():
                 raise ValueError(f"Invalid column name: {col}")
-            conditions.append(f"{col} = ?")
-            params.append(val)
+            
+            if isinstance(val, list) or isinstance(val, tuple):
+                if not val:
+                    continue  # empty list means no filter applied
+                placeholders = ", ".join(["?"] * len(val))
+                conditions.append(f"uf.{col} IN ({placeholders})")
+                params.extend(val)
+            else:
+                conditions.append(f"uf.{col} = ?")
+                params.append(val)
             
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
