@@ -5,7 +5,7 @@ import pandas as pd
 from faker import Faker
 from datetime import timedelta
 
-def generate_synthetic_data():
+def generate_synthetic_data(output_dir='data/raw'):
     print("Initializing synthetic data generation...")
     # Set seeds for reproducibility
     np.random.seed(42)
@@ -130,10 +130,10 @@ def generate_synthetic_data():
     df_users = pd.DataFrame(users)
     df_features = pd.DataFrame(feature_usage)
 
-    print("Saving Data to CSVs...")
-    os.makedirs('data/raw', exist_ok=True)
-    df_users.to_csv('data/raw/users.csv', index=False)
-    df_features.to_csv('data/raw/feature_usage.csv', index=False)
+    print(f"Saving Data to CSVs in {output_dir}...")
+    os.makedirs(output_dir, exist_ok=True)
+    df_users.to_csv(os.path.join(output_dir, 'users.csv'), index=False)
+    df_features.to_csv(os.path.join(output_dir, 'feature_usage.csv'), index=False)
 
     print("\n--- Data Generation Summary ---")
     total_users = len(df_users)
