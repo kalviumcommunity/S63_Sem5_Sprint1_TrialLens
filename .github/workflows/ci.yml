@@ -36,11 +36,11 @@ jobs:
         
     - name: Run End-to-End Pipeline
       run: |
-        python src/run_pipeline.py
+        python -m src.run_pipeline
         
     - name: Run tests with pytest
       run: |
-        pytest --cov=src --cov=app tests/
+        python -m pytest --cov=src --cov=app tests/
 
   streamlit-smoke-test:
     needs: build-and-test
@@ -63,12 +63,12 @@ jobs:
         
     - name: Run Pipeline Data Generation for App
       run: |
-        python src/run_pipeline.py
+        python -m src.run_pipeline
         
     - name: Smoke test Streamlit App
       run: |
         # Start Streamlit in headless mode in the background
-        streamlit run app/streamlit_app.py --server.headless true &
+        python -m streamlit run app/streamlit_app.py --server.headless true &
         
         # Save the process ID
         STREAMLIT_PID=$!
