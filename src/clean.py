@@ -1,6 +1,37 @@
 import pandas as pd
 import sqlite3
 import pprint
+import numpy as np
+
+def normalize_strings(df, columns, case='title'):
+    num_changed = 0
+    for col in columns:
+        if col not in df.columns:
+            continue
+            
+        mask = df[col].notna()
+        if not mask.any():
+            continue
+            
+        orig = df[col].copy()
+        
+        cleaned = df[col].astype(str)
+        cleaned = cleaned.str.strip()
+        cleaned = cleaned.str.replace(r'\s+', ' ', regex=True)
+        
+        if case == 'title':
+            cleaned = cleaned.str.title()
+        elif case == 'lower':
+            cleaned = cleaned.str.lower()
+            
+        cleaned = cleaned.where(mask, np.nan)
+        
+        changed = (orig != cleaned) & mask
+        num_changed += changed.sum()
+        
+        df[col] = cleaned
+        
+    return df, num_changed
 
 def run_cleaning(db_path="data/trialens.db"):
     print(f"Starting data cleaning on {db_path}...")
@@ -15,6 +46,15 @@ def run_cleaning(db_path="data/trialens.db"):
         return {}
         
     report = {}
+    
+    # 0. String Normalization
+    df_users, users_norm = normalize_strings(df_users, ['plan_type', 'company_size'], case='title')
+    report['users_normalized'] = int(users_norm)
+    print(f"Normalized {users_norm} values across plan_type and company_size in users.")
+    
+    df_features, features_norm = normalize_strings(df_features, ['feature_name'], case='lower')
+    report['features_normalized'] = int(features_norm)
+    print(f"Normalized {features_norm} values in feature_name in feature_usage.")
     
     # 1. Nulls in required fields
     initial_users = len(df_users)
