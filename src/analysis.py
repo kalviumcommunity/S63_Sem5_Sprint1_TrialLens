@@ -51,6 +51,58 @@ def get_correlation_matrix(df):
         
     return corr_df.corr(method='pearson')
 
+def get_funnel(db_path="data/trialens.db", df=None):
+    """
+    Computes a strict funnel analysis of user drop-off across defined stages.
+    """
+    if df is None:
+        try:
+            conn = sqlite3.connect(db_path)
+            df = pd.read_sql("SELECT * FROM user_features", conn)
+            conn.close()
+        except Exception as e:
+            print(f"Error loading data for funnel: {e}")
+            return pd.DataFrame()
+            
+    if df.empty:
+        return pd.DataFrame()
+        
+    df = df.copy()
+    df['converted'] = df['converted'].astype(bool)
+    
+    s1 = pd.Series(True, index=df.index)
+    s2 = s1 & (df.get('total_events', 0) > 0)
+    s3 = s2 & df.get('time_to_first_core_feature', pd.Series(np.nan, index=df.index)).notna()
+    s4 = s3 & (df.get('core_features_used_first_7_days', 0) >= 3)
+    s5 = s4 & df['converted']
+    
+    stages = [
+        {"stage_name": "1_signed_up", "mask": s1},
+        {"stage_name": "2_any_event", "mask": s2},
+        {"stage_name": "3_core_feature", "mask": s3},
+        {"stage_name": "4_high_core_usage", "mask": s4},
+        {"stage_name": "5_converted", "mask": s5},
+    ]
+    
+    results = []
+    total_users = len(df)
+    prev_count = total_users
+    
+    for s in stages:
+        count = int(s["mask"].sum())
+        pct_total = count / total_users if total_users > 0 else 0.0
+        pct_prev = count / prev_count if prev_count > 0 else 0.0
+        
+        results.append({
+            "stage_name": s["stage_name"],
+            "user_count": count,
+            "pct_of_previous_stage": pct_prev,
+            "pct_of_total": pct_total
+        })
+        
+        prev_count = count
+        
+    return pd.DataFrame(results)
 
 def run_analysis(db_path="data/trialens.db", df=None):
     """
@@ -154,9 +206,10 @@ def run_analysis(db_path="data/trialens.db", df=None):
                     'count': int(seg_counts.get(seg_val, 0))
                 }
                 
-    # 5. Distributions & Correlations
+    # 5. Distributions & Correlations & Funnel
     report['distributions'] = get_distributions(df)
     report['correlation_matrix'] = get_correlation_matrix(df)
+    report['funnel'] = get_funnel(df=df)
     
     return report
 

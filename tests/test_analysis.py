@@ -74,3 +74,37 @@ def test_run_analysis_significance():
     # Check 1.0 on diagonal
     for col in corr.columns:
         assert abs(corr.loc[col, col] - 1.0) < 1e-6
+
+def test_get_funnel():
+    import numpy as np
+    from src.analysis import get_funnel
+    
+    # Construct a dataset for funnel testing
+    # We want:
+    # 5 total users
+    # 4 with > 0 events
+    # 3 with time_to_first_core_feature != NaN
+    # 2 with 3+ core features
+    # 1 who converted
+    
+    data = [
+        # u1: fully converted (makes it to stage 5)
+        {'user_id': 'u1', 'total_events': 10, 'time_to_first_core_feature': 1.0, 'core_features_used_first_7_days': 3, 'converted': True},
+        # u2: makes it to stage 4 but doesn't convert
+        {'user_id': 'u2', 'total_events': 10, 'time_to_first_core_feature': 1.0, 'core_features_used_first_7_days': 3, 'converted': False},
+        # u3: makes it to stage 3 but only 2 core features
+        {'user_id': 'u3', 'total_events': 10, 'time_to_first_core_feature': 1.0, 'core_features_used_first_7_days': 2, 'converted': False},
+        # u4: makes it to stage 2 but no core feature (NaN)
+        {'user_id': 'u4', 'total_events': 10, 'time_to_first_core_feature': np.nan, 'core_features_used_first_7_days': 0, 'converted': False},
+        # u5: signed up only (0 events)
+        {'user_id': 'u5', 'total_events': 0, 'time_to_first_core_feature': np.nan, 'core_features_used_first_7_days': 0, 'converted': False},
+    ]
+    
+    df = pd.DataFrame(data)
+    funnel = get_funnel(df=df)
+    
+    counts = funnel['user_count'].tolist()
+    assert counts == [5, 4, 3, 2, 1]
+    
+    # Check pct of previous stage for stage 4 -> stage 5 (1 / 2 = 0.5)
+    assert funnel.loc[4, 'pct_of_previous_stage'] == 0.5
