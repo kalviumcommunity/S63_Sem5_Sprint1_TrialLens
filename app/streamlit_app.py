@@ -33,6 +33,43 @@ with st.sidebar:
     TrialLens is an analytical dashboard designed to uncover the hidden behavioral patterns 
     that predict SaaS free-trial conversion.
     """)
+    
+    with st.expander("Upload Your Own Data (Preview)"):
+        st.info(
+            "This is a preview feature. The main dashboard metrics continue to reflect "
+            "the built-in demo dataset. A full 'bring your own data' pipeline is a "
+            "planned future improvement."
+        )
+        
+        uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
+        
+        if uploaded_file is not None:
+            try:
+                # Read CSV
+                df_upload = pd.read_csv(uploaded_file)
+                
+                # Show dataframe preview
+                st.write("**Data Preview (First 20 rows)**")
+                st.dataframe(df_upload.head(20), use_container_width=True)
+                
+                # Show profiling
+                st.write("**Basic Profiling**")
+                st.write(f"- **Rows:** {len(df_upload):,}")
+                st.write(f"- **Columns:** {len(df_upload.columns)}")
+                
+                # Column details
+                prof_data = []
+                for col in df_upload.columns:
+                    null_pct = df_upload[col].isnull().mean() * 100
+                    prof_data.append({
+                        "Column": col,
+                        "Type": str(df_upload[col].dtype),
+                        "Nulls (%)": f"{null_pct:.1f}%"
+                    })
+                st.dataframe(pd.DataFrame(prof_data), use_container_width=True)
+                
+            except Exception as e:
+                st.error(f"Error reading file. Please ensure it's a valid CSV. Details: {e}")
 
 # 2. Header section
 st.title("TrialLens")
