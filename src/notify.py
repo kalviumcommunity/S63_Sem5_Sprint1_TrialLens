@@ -47,3 +47,12 @@ def send_report_email(recipient: str, report_text: str) -> dict:
         }
     except Exception as e:
         return {"status": "error", "message": f"Failed to send email: {e}"}
+
+
+if __name__ == "__main__":
+    load_dotenv()
+    print("Environment variables loaded:")
+    for var in ["SMTP_SERVER", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD"]:
+        val = os.getenv(var)
+        status = "SET (value hidden)" if val else "NOT SET"
+        print(f"  {var}: {status}")
