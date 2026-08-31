@@ -48,6 +48,7 @@ def send_report_email(recipient: str, report_text: str) -> dict:
     except Exception as e:
         return {"status": "error", "message": f"Failed to send email: {e}"}
 
+
 if __name__ == "__main__":
     load_dotenv()
     print("Environment variables loaded:")
