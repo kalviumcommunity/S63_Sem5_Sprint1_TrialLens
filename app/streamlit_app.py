@@ -168,6 +168,19 @@ try:
     # 4. Divider and placeholder
     st.divider()
     
+    # --- ALERTS SECTION ---
+    try:
+        from src.alerts import get_at_risk_users
+    except ModuleNotFoundError:
+        from alerts import get_at_risk_users
+        
+    at_risk_df = get_at_risk_users(filtered_df)
+    if not at_risk_df.empty:
+        st.warning(f"⚠️ **Alert:** {len(at_risk_df):,} users are currently at risk of churning due to declining engagement.")
+        with st.expander("View At-Risk Users"):
+            st.dataframe(at_risk_df[['user_id', 'plan_type', 'company_size', 'usage_trend', 'total_events']], use_container_width=True)
+        st.divider()
+    
     # 1a. Headline Chart
     st.subheader("Key Insight: Core Feature Engagement")
     
