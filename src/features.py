@@ -2,6 +2,49 @@ import sqlite3
 import pandas as pd
 import numpy as np
 
+def compute_daily_activity(feature_usage_df, user_id):
+    """
+    Returns a per-day event count series for a specific user across their trial window.
+    """
+    user_events = feature_usage_df[feature_usage_df['user_id'] == user_id]
+    if user_events.empty:
+        return pd.Series(dtype=float)
+        
+    daily = user_events.groupby('days_since_signup').size()
+    
+    trial_length = user_events['trial_length_days'].iloc[0] if 'trial_length_days' in user_events.columns else 14
+    max_day = int(max(trial_length, daily.index.max() if not daily.empty else 0))
+    full_index = pd.RangeIndex(0, max_day + 1)
+    
+    return daily.reindex(full_index, fill_value=0)
+
+def compute_rolling_engagement(df, window=3):
+    """
+    Computes a rolling average of daily event counts per user and derives a linear trend slope.
+    """
+    slopes = {}
+    users = df['user_id'].unique()
+    
+    for uid in users:
+        daily = compute_daily_activity(df, uid)
+        if len(daily) < window:
+            slopes[uid] = 0.0
+            continue
+            
+        rolling_avg = daily.rolling(window=window, min_periods=1).mean()
+        
+        x = np.arange(len(rolling_avg))
+        y = rolling_avg.values
+        
+        if len(x) > 1:
+            slope, _ = np.polyfit(x, y, 1)
+            slopes[uid] = float(slope)
+        else:
+            slopes[uid] = 0.0
+            
+    return pd.Series(slopes, name='rolling_trend_slope')
+
+
 def build_features(db_path="data/trialens.db"):
     print(f"Building features from {db_path}...")
     conn = sqlite3.connect(db_path)
@@ -67,16 +110,20 @@ def build_features(db_path="data/trialens.db"):
     # sessions_count
     sessions_count = g['session_id'].nunique().rename('sessions_count')
     
+    # rolling_trend_slope
+    rolling_trend_slope = compute_rolling_engagement(df, window=3)
+    
     # Combine features
     user_features = pd.DataFrame(index=users['user_id'].unique())
     
-    for s in [days_active, distinct_features_used, core_first_7, total_events, first_core_days, usage_trend, sessions_count]:
+    for s in [days_active, distinct_features_used, core_first_7, total_events, first_core_days, usage_trend, rolling_trend_slope, sessions_count]:
         user_features = user_features.join(s, how='left')
         
     # Fill NAs for counts (users with zero events or zero specific events)
     count_cols = ['days_active', 'distinct_features_used', 'core_features_used_first_7_days', 'total_events', 'sessions_count']
     user_features[count_cols] = user_features[count_cols].fillna(0).astype(int)
     user_features['usage_trend'] = user_features['usage_trend'].fillna('flat')
+    user_features['rolling_trend_slope'] = user_features['rolling_trend_slope'].fillna(0.0)
     
     # Join with users_clean
     user_features = user_features.reset_index().rename(columns={'index': 'user_id'})
