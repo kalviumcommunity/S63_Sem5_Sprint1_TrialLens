@@ -8,7 +8,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import plotly.express as px
 import pandas as pd
 from src.db import (
-    get_kpi_summary,
     get_conversion_by_core_features,
     get_conversion_by_trend,
     get_conversion_by_segment,
