@@ -24,6 +24,14 @@ st.set_page_config(
     page_icon="🔍"
 )
 
+# Initialize session state defaults for filters
+if 'plan_type' not in st.session_state:
+    st.session_state['plan_type'] = []
+if 'company_size' not in st.session_state:
+    st.session_state['company_size'] = []
+if 'converted' not in st.session_state:
+    st.session_state['converted'] = "All"
+
 # 6. Sidebar with project name and About blurb
 with st.sidebar:
     st.title("TrialLens")
@@ -106,9 +114,15 @@ try:
     st.sidebar.markdown("---")
     st.sidebar.subheader("Filter Users")
     
-    selected_plans = st.sidebar.multiselect("Plan Type", options=all_plans)
-    selected_sizes = st.sidebar.multiselect("Company Size", options=all_sizes)
-    selected_conv = st.sidebar.radio("Conversion Status", options=["All", "Converted", "Not Converted"])
+    selected_plans = st.sidebar.multiselect("Plan Type", options=all_plans, key="plan_type")
+    selected_sizes = st.sidebar.multiselect("Company Size", options=all_sizes, key="company_size")
+    selected_conv = st.sidebar.radio("Conversion Status", options=["All", "Converted", "Not Converted"], key="converted")
+    
+    if st.sidebar.button("Reset Filters"):
+        st.session_state['plan_type'] = []
+        st.session_state['company_size'] = []
+        st.session_state['converted'] = "All"
+        st.rerun()
     
     # Build filter dict
     filters = {}
