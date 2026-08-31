@@ -338,6 +338,32 @@ try:
             )
         else:
             st.button("📊 Download Filtered Data (CSV)", disabled=True)
+            
+    # --- EMAIL SHARING SECTION ---
+    st.write("---")
+    st.write("**Share Report via Email**")
+    
+    email_col1, email_col2 = st.columns([3, 1])
+    with email_col1:
+        recipient_email = st.text_input("Recipient Email Address", placeholder="team@example.com", label_visibility="collapsed")
+    with email_col2:
+        if st.button("Send Email", use_container_width=True):
+            if recipient_email:
+                try:
+                    from src.notify import send_report_email
+                except ModuleNotFoundError:
+                    from notify import send_report_email
+                
+                result = send_report_email(recipient_email, report_text)
+                
+                if result['status'] == 'not_configured':
+                    st.warning(result['message'])
+                elif result['status'] == 'success':
+                    st.success(result['message'])
+                else:
+                    st.error(result['message'])
+            else:
+                st.error("Please enter an email address.")
 
 except Exception as e:
     st.error("⚠️ Database Not Found or Data Error")

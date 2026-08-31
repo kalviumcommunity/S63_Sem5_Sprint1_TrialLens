@@ -50,3 +50,16 @@ trialens/
 ├── requirements.txt
 └── README.md
 ```
+
+## Email Sharing Configuration
+
+The dashboard includes a feature to share reports via email. To fully enable this feature (so it actually sends emails instead of just displaying a preview), create a `.env` file in the project root with your SMTP credentials:
+
+```env
+SMTP_SERVER=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your_email@example.com
+SMTP_PASSWORD=your_secure_password
+```
+
+If these are not configured, the app will fail gracefully and display the report payload directly in the dashboard instead of crashing.
