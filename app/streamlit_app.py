@@ -149,6 +149,21 @@ try:
         f"This effect is {sig_text} (p-value: {pval_str})."
     )
     
+    st.subheader("What This Means")
+    st.info(
+        f"**The Problem:** Product managers often rely on intuition or lagging indicators to determine which "
+        f"behaviors actually drive subscriptions, leading to scattered and ineffective onboarding efforts.\n\n"
+        f"**The Finding:** Our data reveals a massive leverage point: users who engage with at least 3 core features "
+        f"in their first 7 days convert at a remarkable **{high_cr:.1f}%**. This dwarfs the **{low_cr:.1f}%** "
+        f"conversion rate of users who fail to reach this activation threshold.\n\n"
+        f"**Why It Matters:** Instead of sending generic welcome emails, product and marketing teams must aggressively "
+        f"funnel new signups toward these specific core actions. Onboarding tours should explicitly drive users to set "
+        f"up a dashboard, invite a collaborator, or connect an integration before their first week ends.\n\n"
+        f"**Caveat:** Keep in mind that this analysis highlights a strong correlation, not strict causation. Highly "
+        f"motivated users might naturally explore more features. We recommend running a targeted A/B test enforcing "
+        f"this new onboarding path to measure the true causal lift."
+    )
+    
     st.divider()
     
     # 2. Side-by-side charts
