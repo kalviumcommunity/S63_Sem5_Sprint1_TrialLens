@@ -53,3 +53,24 @@ def test_run_analysis_significance():
     seg = report['segments']
     assert 'Pro' in seg['plan_type']
     assert seg['plan_type']['Pro']['high_core_cr'] > 0.9
+
+    # Assertions on distributions
+    assert 'distributions' in report
+    dist = report['distributions']
+    assert 'total_events' in dist
+    assert 'converted' in dist['total_events']
+    assert 'not_converted' in dist['total_events']
+    assert 'mean' in dist['total_events']['converted']
+    assert 'median' in dist['total_events']['converted']
+    
+    # Assertions on correlation matrix
+    assert 'correlation_matrix' in report
+    corr = report['correlation_matrix']
+    assert isinstance(corr, pd.DataFrame)
+    
+    # Check it's symmetric
+    assert (corr.columns == corr.index).all()
+    
+    # Check 1.0 on diagonal
+    for col in corr.columns:
+        assert abs(corr.loc[col, col] - 1.0) < 1e-6

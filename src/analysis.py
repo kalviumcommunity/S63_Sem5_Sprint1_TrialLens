@@ -3,6 +3,55 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 
+def get_distributions(df):
+    """
+    Computes distribution statistics for numeric features split by conversion status.
+    """
+    numeric_cols = ['days_active', 'distinct_features_used', 'total_events', 'sessions_count']
+    dist = {}
+    
+    if 'converted' not in df.columns:
+        return dist
+        
+    for col in numeric_cols:
+        if col in df.columns:
+            dist[col] = {}
+            for status in [True, False]:
+                status_str = "converted" if status else "not_converted"
+                subset = df[df['converted'] == status][col].dropna()
+                if len(subset) > 0:
+                    dist[col][status_str] = {
+                        'mean': float(subset.mean()),
+                        'median': float(subset.median()),
+                        'std': float(subset.std()),
+                        'min': float(subset.min()),
+                        'max': float(subset.max()),
+                        'q1': float(subset.quantile(0.25)),
+                        'q3': float(subset.quantile(0.75))
+                    }
+                else:
+                    dist[col][status_str] = None
+    return dist
+
+def get_correlation_matrix(df):
+    """
+    Computes Pearson correlation matrix across numeric features + converted status.
+    Returns a pandas DataFrame usable for heatmaps.
+    """
+    numeric_cols = [
+        'days_active', 'distinct_features_used', 
+        'core_features_used_first_7_days', 'total_events', 
+        'time_to_first_core_feature', 'sessions_count', 'converted'
+    ]
+    
+    existing_cols = [c for c in numeric_cols if c in df.columns]
+    corr_df = df[existing_cols].copy()
+    if 'converted' in corr_df.columns:
+        corr_df['converted'] = corr_df['converted'].astype(int)
+        
+    return corr_df.corr(method='pearson')
+
+
 def run_analysis(db_path="data/trialens.db", df=None):
     """
     Run statistical analysis on user features to find predictors of conversion.
@@ -92,19 +141,23 @@ def run_analysis(db_path="data/trialens.db", df=None):
     # 4. Segmentation
     for segment_col in ['plan_type', 'company_size']:
         if segment_col in df.columns:
-            for seg_val in df[segment_col].unique():
-                if pd.isna(seg_val):
-                    continue
-                seg_df = df[df[segment_col] == seg_val]
-                seg_high = seg_df[seg_df['high_core']]['converted'].mean() if len(seg_df[seg_df['high_core']]) > 0 else 0
-                seg_low = seg_df[~seg_df['high_core']]['converted'].mean() if len(seg_df[~seg_df['high_core']]) > 0 else 0
-                
+            # Refactored from Python loop to vectorized groupby for better performance.
+            # Using pandas aggregations directly avoids slicing the DataFrame repeatedly in a python loop.
+            seg_counts = df.groupby(segment_col).size()
+            seg_high_cr = df[df['high_core']].groupby(segment_col)['converted'].mean()
+            seg_low_cr = df[~df['high_core']].groupby(segment_col)['converted'].mean()
+            
+            for seg_val in df[segment_col].dropna().unique():
                 report['segments'][segment_col][seg_val] = {
-                    'high_core_cr': seg_high,
-                    'low_core_cr': seg_low,
-                    'count': len(seg_df)
+                    'high_core_cr': float(seg_high_cr.get(seg_val, 0.0)),
+                    'low_core_cr': float(seg_low_cr.get(seg_val, 0.0)),
+                    'count': int(seg_counts.get(seg_val, 0))
                 }
                 
+    # 5. Distributions & Correlations
+    report['distributions'] = get_distributions(df)
+    report['correlation_matrix'] = get_correlation_matrix(df)
+    
     return report
 
 if __name__ == "__main__":
