@@ -4,9 +4,16 @@ from typing import Dict, Any, Optional
 
 DEFAULT_DB_PATH = "data/trialens.db"
 
-def get_connection(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
-    """Returns a connection to the SQLite database."""
-    return sqlite3.connect(db_path)
+from contextlib import contextmanager
+
+@contextmanager
+def get_connection(db_path: str = DEFAULT_DB_PATH):
+    """Returns a connection to the SQLite database via a context manager."""
+    conn = sqlite3.connect(db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 def get_kpi_summary(db_path: str = DEFAULT_DB_PATH) -> Dict[str, Any]:
     """Returns a dict with total_users, overall_conversion_rate, avg_time_to_convert."""
