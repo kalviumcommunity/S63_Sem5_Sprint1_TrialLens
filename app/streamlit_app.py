@@ -15,6 +15,7 @@ from src.db import (
     get_user_features
 )
 from src.analysis import run_analysis
+from src.report import generate_report_text
 
 # 1. Set page config
 st.set_page_config(
@@ -238,7 +239,42 @@ try:
         display_df = filtered_df[existing_cols].copy()
         
         st.dataframe(display_df, use_container_width=True)
+        
+    st.divider()
     
+    # --- EXPORT SECTION ---
+    st.subheader("Export Data")
+    st.write("Download the summary report or the raw data for further analysis.")
+    
+    export_col1, export_col2 = st.columns(2)
+    
+    with export_col1:
+        kpi_summary = {
+            'total_users': total_users,
+            'overall_conversion_rate': conv_rate,
+            'avg_time_to_convert': avg_time
+        }
+        report_text = generate_report_text(analysis_report, kpi_summary)
+        
+        st.download_button(
+            label="📄 Download Summary Report",
+            data=report_text,
+            file_name="TrialLens_Summary_Report.md",
+            mime="text/markdown"
+        )
+        
+    with export_col2:
+        if not filtered_df.empty:
+            csv_data = filtered_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📊 Download Filtered Data (CSV)",
+                data=csv_data,
+                file_name="TrialLens_Filtered_Users.csv",
+                mime="text/csv"
+            )
+        else:
+            st.button("📊 Download Filtered Data (CSV)", disabled=True)
+
 except Exception as e:
     st.error("⚠️ Database Not Found or Data Error")
     st.error(
