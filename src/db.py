@@ -188,3 +188,93 @@ def query_engagement_summary_view(db_path: str = DEFAULT_DB_PATH) -> pd.DataFram
     query = "SELECT * FROM engagement_summary"
     with get_connection(db_path) as conn:
         return pd.read_sql(query, conn)
+
+def check_query_plan(query: str, db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
+    """
+    Runs EXPLAIN QUERY PLAN for a given SQL query and returns the plan.
+    """
+    explain_query = f"EXPLAIN QUERY PLAN {query}"
+    with get_connection(db_path) as conn:
+        df = pd.read_sql(explain_query, conn)
+    return df
+
+def validate_headline_finding_sql(db_path: str = DEFAULT_DB_PATH) -> Dict[str, Any]:
+    """
+    Independently re-derives the headline stat (conversion rate for 3+ distinct 
+    core features in first 7 days vs users without) using pure SQL.
+    Returns both SQL and Python numbers for cross-validation.
+    """
+    sql_query = """
+    WITH core_events_first_7 AS (
+        SELECT 
+            u.user_id,
+            COUNT(DISTINCT f.feature_name) as distinct_core_count
+        FROM users_clean u
+        LEFT JOIN feature_usage_clean f 
+            ON u.user_id = f.user_id 
+            AND f.feature_name IN ('dashboard', 'integrations', 'collaboration')
+            AND (julianday(f.event_timestamp) - julianday(u.signup_date)) < 7
+        GROUP BY u.user_id
+    ),
+    cohorts AS (
+        SELECT 
+            u.user_id,
+            u.converted,
+            CASE 
+                WHEN c.distinct_core_count >= 3 THEN '3+ core features'
+                ELSE '<3 core features'
+            END as feature_group
+        FROM users_clean u
+        JOIN core_events_first_7 c ON u.user_id = c.user_id
+    )
+    SELECT 
+        feature_group,
+        AVG(CAST(converted AS FLOAT)) * 100.0 as conversion_rate
+    FROM cohorts
+    GROUP BY feature_group
+    """
+    
+    with get_connection(db_path) as conn:
+        sql_df = pd.read_sql(sql_query, conn)
+        
+    sql_high = sql_df[sql_df['feature_group'] == '3+ core features']['conversion_rate'].iloc[0]
+    sql_low = sql_df[sql_df['feature_group'] == '<3 core features']['conversion_rate'].iloc[0]
+    
+    # Get Python-based result
+    py_df = get_conversion_by_core_features(db_path)
+    py_high = py_df[py_df['feature_group'] == '3+ core features']['conversion_rate'].iloc[0]
+    py_low = py_df[py_df['feature_group'] == '<3 core features']['conversion_rate'].iloc[0]
+    
+    match_high = abs(sql_high - py_high) < 1e-5
+    match_low = abs(sql_low - py_low) < 1e-5
+    
+    return {
+        'sql_high_core_conversion': float(sql_high),
+        'sql_low_core_conversion': float(sql_low),
+        'py_high_core_conversion': float(py_high),
+        'py_low_core_conversion': float(py_low),
+        'matches': bool(match_high and match_low)
+    }
+
+if __name__ == "__main__":
+    print("\n--- QUERY PLAN CHECKS ---")
+    q1 = "SELECT * FROM users WHERE plan_type = 'Starter'"
+    print(f"Query: {q1}")
+    print(check_query_plan(q1))
+    
+    q2 = "SELECT uf.*, uc.signup_date FROM user_features uf LEFT JOIN users_clean uc ON uf.user_id = uc.user_id"
+    print(f"\nQuery: {q2}")
+    print(check_query_plan(q2))
+    
+    q3 = "SELECT * FROM feature_usage WHERE user_id = 'u1'"
+    print(f"\nQuery: {q3}")
+    print(check_query_plan(q3))
+    
+    print("\n--- SQL VALIDATION CHECK ---")
+    val = validate_headline_finding_sql()
+    print(f"Python High Core Conv: {val['py_high_core_conversion']:.1f}%")
+    print(f"SQL High Core Conv:    {val['sql_high_core_conversion']:.1f}%")
+    print(f"Python Low Core Conv:  {val['py_low_core_conversion']:.1f}%")
+    print(f"SQL Low Core Conv:     {val['sql_low_core_conversion']:.1f}%")
+    print(f"Matches exactly?       {'YES' if val['matches'] else 'NO'}")
+

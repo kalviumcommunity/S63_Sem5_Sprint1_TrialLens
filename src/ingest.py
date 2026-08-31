@@ -49,6 +49,8 @@ def run_ingestion(db_path="data/trialens.db", users_csv="data/raw/users.csv", fe
     # 3. Create indexes
     cursor.execute("CREATE INDEX idx_feature_usage_user_id ON feature_usage(user_id)")
     cursor.execute("CREATE INDEX idx_feature_usage_event_timestamp ON feature_usage(event_timestamp)")
+    cursor.execute("CREATE INDEX idx_users_plan_type ON users(plan_type)")
+
     
     conn.commit()
     
