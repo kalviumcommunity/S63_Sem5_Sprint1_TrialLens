@@ -104,6 +104,44 @@ def get_funnel(db_path="data/trialens.db", df=None):
         
     return pd.DataFrame(results)
 
+def find_anomalies(df):
+    """Identify users with high engagement but no conversion."""
+    if df is None or df.empty:
+        return pd.DataFrame()
+    return df[(df.get('core_features_used_first_7_days', 0) >= 3) & (~df.get('converted', False))]
+
+def investigate_anomalies(anomalies_df, full_df):
+    """Compare anomalies against expected users across key features."""
+    if anomalies_df.empty or full_df is None or full_df.empty:
+        return {}
+        
+    expected_df = full_df[(full_df.get('core_features_used_first_7_days', 0) >= 3) & (full_df.get('converted', False))]
+    
+    if expected_df.empty:
+        return {}
+        
+    comparison = {}
+    
+    cat_cols = ['plan_type', 'company_size', 'usage_trend']
+    for col in cat_cols:
+        if col in full_df.columns:
+            anom_pct = anomalies_df[col].value_counts(normalize=True).to_dict()
+            exp_pct = expected_df[col].value_counts(normalize=True).to_dict()
+            comparison[col] = {
+                'anomalies': anom_pct,
+                'expected': exp_pct
+            }
+            
+    num_cols = ['time_to_first_core_feature', 'sessions_count']
+    for col in num_cols:
+        if col in full_df.columns:
+            comparison[col] = {
+                'anomalies_mean': float(anomalies_df[col].mean()),
+                'expected_mean': float(expected_df[col].mean())
+            }
+            
+    return comparison
+
 def run_analysis(db_path="data/trialens.db", df=None):
     """
     Run statistical analysis on user features to find predictors of conversion.
@@ -211,6 +249,11 @@ def run_analysis(db_path="data/trialens.db", df=None):
     report['correlation_matrix'] = get_correlation_matrix(df)
     report['funnel'] = get_funnel(df=df)
     
+    # 6. Anomaly Detection
+    anomalies_df = find_anomalies(df)
+    report['anomalies_count'] = len(anomalies_df)
+    report['anomalies_investigation'] = investigate_anomalies(anomalies_df, df)
+    
     return report
 
 if __name__ == "__main__":
@@ -229,6 +272,18 @@ if __name__ == "__main__":
     if hc.get('p_value') is not None:
         print(f"Chi-square p-value:     {hc.get('p_value'):.4e}")
         print(f"Statistically Sig.?     {'Yes' if hc.get('significant') else 'No'}\n")
+        
+    print("--- ANOMALY INVESTIGATION ---")
+    anom_cnt = report.get('anomalies_count', 0)
+    investigation = report.get('anomalies_investigation', {})
+    print(f"{anom_cnt} users showed strong engagement but did not convert.")
+    
+    if investigation and 'plan_type' in investigation:
+        plan_anom = investigation['plan_type'].get('anomalies', {})
+        plan_exp = investigation['plan_type'].get('expected', {})
+        starter_anom = plan_anom.get('Starter', 0.0)
+        starter_exp = plan_exp.get('Starter', 0.0)
+        print(f"{starter_anom:.1%} of them were on the Starter plan vs {starter_exp:.1%} in the expected (converted) group.\n")
         
     print("--- NUMERIC FEATURES T-TESTS (Converted vs Not) ---")
     for feat, stats_dict in report.get('numeric_features', {}).items():

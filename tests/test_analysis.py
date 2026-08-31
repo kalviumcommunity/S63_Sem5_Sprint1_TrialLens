@@ -108,3 +108,31 @@ def test_get_funnel():
     
     # Check pct of previous stage for stage 4 -> stage 5 (1 / 2 = 0.5)
     assert funnel.loc[4, 'pct_of_previous_stage'] == 0.5
+
+def test_find_anomalies():
+    from src.analysis import find_anomalies
+    
+    data = [
+        # u1: expected (converted + high usage)
+        {'user_id': 'u1', 'core_features_used_first_7_days': 4, 'converted': True},
+        # u2: anomaly (not converted + high usage)
+        {'user_id': 'u2', 'core_features_used_first_7_days': 3, 'converted': False},
+        # u3: anomaly (not converted + high usage)
+        {'user_id': 'u3', 'core_features_used_first_7_days': 5, 'converted': False},
+        # u4: expected bad (not converted + low usage)
+        {'user_id': 'u4', 'core_features_used_first_7_days': 1, 'converted': False},
+        # u5: expected good (converted + low usage)
+        {'user_id': 'u5', 'core_features_used_first_7_days': 2, 'converted': True},
+    ]
+    
+    import pandas as pd
+    df = pd.DataFrame(data)
+    
+    anomalies = find_anomalies(df)
+    
+    # Should only find u2 and u3
+    assert len(anomalies) == 2
+    anomaly_users = anomalies['user_id'].tolist()
+    assert 'u2' in anomaly_users
+    assert 'u3' in anomaly_users
+    assert 'u1' not in anomaly_users
