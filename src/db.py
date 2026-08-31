@@ -6,6 +6,7 @@ DEFAULT_DB_PATH = "data/trialens.db"
 
 from contextlib import contextmanager
 
+
 @contextmanager
 def get_connection(db_path: str = DEFAULT_DB_PATH):
     """Returns a connection to the SQLite database via a context manager."""
@@ -14,6 +15,7 @@ def get_connection(db_path: str = DEFAULT_DB_PATH):
         yield conn
     finally:
         conn.close()
+
 
 def get_kpi_summary(db_path: str = DEFAULT_DB_PATH) -> Dict[str, Any]:
     """Returns a dict with total_users, overall_conversion_rate, avg_time_to_convert."""
@@ -27,15 +29,22 @@ def get_kpi_summary(db_path: str = DEFAULT_DB_PATH) -> Dict[str, Any]:
     """
     with get_connection(db_path) as conn:
         df = pd.read_sql(query, conn)
-    
-    if df.empty or pd.isna(df.iloc[0]['total_users']) or df.iloc[0]['total_users'] == 0:
-        return {'total_users': 0, 'overall_conversion_rate': 0.0, 'avg_time_to_convert': 0.0}
-        
+
+    if df.empty or pd.isna(df.iloc[0]["total_users"]) or df.iloc[0]["total_users"] == 0:
+        return {
+            "total_users": 0,
+            "overall_conversion_rate": 0.0,
+            "avg_time_to_convert": 0.0,
+        }
+
     return {
-        'total_users': int(df.iloc[0]['total_users']),
-        'overall_conversion_rate': round(float(df.iloc[0]['overall_conversion_rate'] or 0), 1),
-        'avg_time_to_convert': round(float(df.iloc[0]['avg_time_to_convert'] or 0), 1)
+        "total_users": int(df.iloc[0]["total_users"]),
+        "overall_conversion_rate": round(
+            float(df.iloc[0]["overall_conversion_rate"] or 0), 1
+        ),
+        "avg_time_to_convert": round(float(df.iloc[0]["avg_time_to_convert"] or 0), 1),
     }
+
 
 def get_conversion_by_core_features(db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
     """
@@ -57,6 +66,7 @@ def get_conversion_by_core_features(db_path: str = DEFAULT_DB_PATH) -> pd.DataFr
         df = pd.read_sql(query, conn)
     return df
 
+
 def get_conversion_by_trend(db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
     """Returns DataFrame: usage_trend category, conversion_rate, user_count."""
     query = """
@@ -72,14 +82,17 @@ def get_conversion_by_trend(db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
         df = pd.read_sql(query, conn)
     return df
 
-def get_conversion_by_segment(segment_col: str, db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
+
+def get_conversion_by_segment(
+    segment_col: str, db_path: str = DEFAULT_DB_PATH
+) -> pd.DataFrame:
     """
     Returns conversion_rate and user_count grouped by the given segment_col ("plan_type" or "company_size").
     """
     ALLOWED_SEGMENTS = {"plan_type", "company_size"}
     if segment_col not in ALLOWED_SEGMENTS:
         raise ValueError(f"Invalid segment_col. Must be one of {ALLOWED_SEGMENTS}")
-        
+
     # segment_col is validated against an allowlist, so it's safe to format directly into the query
     query = f"""
         SELECT 
@@ -95,9 +108,12 @@ def get_conversion_by_segment(segment_col: str, db_path: str = DEFAULT_DB_PATH) 
         df = pd.read_sql(query, conn)
     return df
 
-def get_user_features(filters: Optional[Dict[str, Any]] = None, db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
+
+def get_user_features(
+    filters: Optional[Dict[str, Any]] = None, db_path: str = DEFAULT_DB_PATH
+) -> pd.DataFrame:
     """
-    Returns full user_features dataframe (plus signup_date and conversion_date), 
+    Returns full user_features dataframe (plus signup_date and conversion_date),
     optionally filtered via parameterized query.
     """
     query = """
@@ -106,14 +122,14 @@ def get_user_features(filters: Optional[Dict[str, Any]] = None, db_path: str = D
         LEFT JOIN users_clean uc ON uf.user_id = uc.user_id
     """
     params = []
-    
+
     if filters:
         conditions = []
         for col, val in filters.items():
             # Validate column name to prevent SQL injection via keys
             if not str(col).isidentifier():
                 raise ValueError(f"Invalid column name: {col}")
-            
+
             if isinstance(val, list) or isinstance(val, tuple):
                 if not val:
                     continue  # empty list means no filter applied
@@ -123,13 +139,14 @@ def get_user_features(filters: Optional[Dict[str, Any]] = None, db_path: str = D
             else:
                 conditions.append(f"uf.{col} = ?")
                 params.append(val)
-            
+
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
-            
+
     with get_connection(db_path) as conn:
         df = pd.read_sql(query, conn, params=params)
     return df
+
 
 def get_engagement_ranking(db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
     """
@@ -149,6 +166,7 @@ def get_engagement_ranking(db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
     with get_connection(db_path) as conn:
         df = pd.read_sql(query, conn)
     return df
+
 
 def create_views(db_path: str = DEFAULT_DB_PATH):
     """
@@ -178,7 +196,7 @@ def create_views(db_path: str = DEFAULT_DB_PATH):
             COUNT(*) as user_count
         FROM user_features
         GROUP BY converted;
-        """
+        """,
     ]
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -186,15 +204,18 @@ def create_views(db_path: str = DEFAULT_DB_PATH):
             cursor.execute(q)
         conn.commit()
 
+
 def query_conversion_summary_view(db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
     query = "SELECT * FROM conversion_summary"
     with get_connection(db_path) as conn:
         return pd.read_sql(query, conn)
 
+
 def query_engagement_summary_view(db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
     query = "SELECT * FROM engagement_summary"
     with get_connection(db_path) as conn:
         return pd.read_sql(query, conn)
+
 
 def check_query_plan(query: str, db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
     """
@@ -205,9 +226,10 @@ def check_query_plan(query: str, db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame
         df = pd.read_sql(explain_query, conn)
     return df
 
+
 def validate_headline_finding_sql(db_path: str = DEFAULT_DB_PATH) -> Dict[str, Any]:
     """
-    Independently re-derives the headline stat (conversion rate for 3+ distinct 
+    Independently re-derives the headline stat (conversion rate for 3+ distinct
     core features in first 7 days vs users without) using pure SQL.
     Returns both SQL and Python numbers for cross-validation.
     """
@@ -240,43 +262,52 @@ def validate_headline_finding_sql(db_path: str = DEFAULT_DB_PATH) -> Dict[str, A
     FROM cohorts
     GROUP BY feature_group
     """
-    
+
     with get_connection(db_path) as conn:
         sql_df = pd.read_sql(sql_query, conn)
-        
-    sql_high = sql_df[sql_df['feature_group'] == '3+ core features']['conversion_rate'].iloc[0]
-    sql_low = sql_df[sql_df['feature_group'] == '<3 core features']['conversion_rate'].iloc[0]
-    
+
+    sql_high = sql_df[sql_df["feature_group"] == "3+ core features"][
+        "conversion_rate"
+    ].iloc[0]
+    sql_low = sql_df[sql_df["feature_group"] == "<3 core features"][
+        "conversion_rate"
+    ].iloc[0]
+
     # Get Python-based result
     py_df = get_conversion_by_core_features(db_path)
-    py_high = py_df[py_df['feature_group'] == '3+ core features']['conversion_rate'].iloc[0]
-    py_low = py_df[py_df['feature_group'] == '<3 core features']['conversion_rate'].iloc[0]
-    
+    py_high = py_df[py_df["feature_group"] == "3+ core features"][
+        "conversion_rate"
+    ].iloc[0]
+    py_low = py_df[py_df["feature_group"] == "<3 core features"][
+        "conversion_rate"
+    ].iloc[0]
+
     match_high = abs(sql_high - py_high) < 1e-5
     match_low = abs(sql_low - py_low) < 1e-5
-    
+
     return {
-        'sql_high_core_conversion': float(sql_high),
-        'sql_low_core_conversion': float(sql_low),
-        'py_high_core_conversion': float(py_high),
-        'py_low_core_conversion': float(py_low),
-        'matches': bool(match_high and match_low)
+        "sql_high_core_conversion": float(sql_high),
+        "sql_low_core_conversion": float(sql_low),
+        "py_high_core_conversion": float(py_high),
+        "py_low_core_conversion": float(py_low),
+        "matches": bool(match_high and match_low),
     }
+
 
 if __name__ == "__main__":
     print("\n--- QUERY PLAN CHECKS ---")
     q1 = "SELECT * FROM users WHERE plan_type = 'Starter'"
     print(f"Query: {q1}")
     print(check_query_plan(q1))
-    
+
     q2 = "SELECT uf.*, uc.signup_date FROM user_features uf LEFT JOIN users_clean uc ON uf.user_id = uc.user_id"
     print(f"\nQuery: {q2}")
     print(check_query_plan(q2))
-    
+
     q3 = "SELECT * FROM feature_usage WHERE user_id = 'u1'"
     print(f"\nQuery: {q3}")
     print(check_query_plan(q3))
-    
+
     print("\n--- SQL VALIDATION CHECK ---")
     val = validate_headline_finding_sql()
     print(f"Python High Core Conv: {val['py_high_core_conversion']:.1f}%")
@@ -284,4 +315,3 @@ if __name__ == "__main__":
     print(f"Python Low Core Conv:  {val['py_low_core_conversion']:.1f}%")
     print(f"SQL Low Core Conv:     {val['sql_low_core_conversion']:.1f}%")
     print(f"Matches exactly?       {'YES' if val['matches'] else 'NO'}")
-

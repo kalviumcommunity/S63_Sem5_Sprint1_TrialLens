@@ -1,5 +1,6 @@
 # TrialLens
 
+[![CI Pipeline](https://github.com/kalviumcommunity/S63_Sem5_Sprint1_TrialLens/actions/workflows/ci.yml/badge.svg)](https://github.com/kalviumcommunity/S63_Sem5_Sprint1_TrialLens/actions/workflows/ci.yml)
 Connecting free-trial user behavior to subscription conversion — so product decisions run on evidence instead of intuition.
 
 ## Problem Statement
