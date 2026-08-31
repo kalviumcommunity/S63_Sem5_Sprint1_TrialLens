@@ -12,7 +12,8 @@ from src.db import (
     get_engagement_ranking,
     create_views,
     query_conversion_summary_view,
-    query_engagement_summary_view
+    query_engagement_summary_view,
+    validate_headline_finding_sql
 )
 
 @pytest.fixture
@@ -129,3 +130,40 @@ def test_views_creation_and_querying(mock_db):
     assert len(eng_df) == 2  # converted = 0 and 1
     assert 'avg_days_active' in eng_df.columns
     assert 'converted' in eng_df.columns
+
+def test_validate_headline_finding_sql(mock_db):
+    conn = sqlite3.connect(mock_db)
+    
+    # Override all 3 tables with a consistent dataset
+    users_data = {
+        "user_id": ["u1", "u2", "u3"],
+        "signup_date": ["2023-01-01", "2023-01-01", "2023-01-01"],
+        "converted": [1, 0, 1],
+    }
+    pd.DataFrame(users_data).to_sql("users_clean", conn, if_exists="replace", index=False)
+    
+    feature_usage_clean_data = {
+        "event_id": ["e1", "e2", "e3", "e4", "e5", "e6"],
+        "user_id": ["u1", "u1", "u1", "u2", "u3", "u3"],
+        "feature_name": ["dashboard", "integrations", "collaboration", "dashboard", "dashboard", "integrations"],
+        "event_timestamp": ["2023-01-02", "2023-01-03", "2023-01-04", "2023-01-05", "2023-01-04", "2023-01-06"]
+    }
+    # distinct core features: u1=3, u2=1, u3=2
+    pd.DataFrame(feature_usage_clean_data).to_sql("feature_usage_clean", conn, if_exists="replace", index=False)
+    
+    user_features_data = {
+        "user_id": ["u1", "u2", "u3"],
+        "converted": [1, 0, 1],
+        "core_features_used_first_7_days": [3, 1, 2],
+    }
+    pd.DataFrame(user_features_data).to_sql("user_features", conn, if_exists="replace", index=False)
+    
+    conn.close()
+    
+    val = validate_headline_finding_sql(mock_db)
+    
+    assert val['matches'] is True
+    # High core (>=3): u1 (converted=1). So 100%
+    assert val['sql_high_core_conversion'] == pytest.approx(100.0, 0.1)
+    # Low core (<3): u2 (conv=0), u3 (conv=1). So 1/2 = 50%
+    assert val['sql_low_core_conversion'] == pytest.approx(50.0, 0.1)
