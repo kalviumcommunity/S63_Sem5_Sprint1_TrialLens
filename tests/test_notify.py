@@ -2,7 +2,7 @@ from src.notify import send_report_email
 
 
 def test_send_report_email_not_configured(monkeypatch):
-    # Clear any environment variables that might be set to ensure we trigger the unconfigured state
+    monkeypatch.setattr("src.notify.load_dotenv", lambda: None)
     monkeypatch.delenv("SMTP_SERVER", raising=False)
     monkeypatch.delenv("SMTP_PORT", raising=False)
     monkeypatch.delenv("SMTP_USER", raising=False)

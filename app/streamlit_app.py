@@ -102,9 +102,15 @@ try:
                 os.path.join(os.path.dirname(__file__), "..", "data", "raw")
             )
             if not os.path.exists(os.path.join(raw_dir, "users.csv")):
-                generate_synthetic_data()
+                generate_synthetic_data(output_dir=raw_dir)
 
-            run_ingestion(raw_dir=raw_dir, db_path=DB_PATH)
+            users_csv = os.path.join(raw_dir, "users.csv")
+            features_csv = os.path.join(raw_dir, "feature_usage.csv")
+            run_ingestion(
+                db_path=DB_PATH,
+                users_csv=users_csv,
+                feature_usage_csv=features_csv,
+            )
             run_cleaning(db_path=DB_PATH)
             build_features(db_path=DB_PATH)
 
